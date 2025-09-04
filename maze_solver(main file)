@@ -1,0 +1,137 @@
+"""
+Main file 
+"""
+
+import time
+import argparse
+from maze_generator import MazeMaker
+from pathfinder import PathFinder
+from game_display import GameDisplay
+from settings import EASY_SIZE, MEDIUM_SIZE, HARD_SIZE
+from settings import EASY_DENSITY, MEDIUM_DENSITY, HARD_DENSITY
+from settings import MOVE_PENALTY, TIME_PENALTY
+
+class MazeGame:
+    def __init__(self, difficulty="medium"):
+        self.difficulty = difficulty
+        
+        # Set size and density based on difficulty
+        if difficulty == "easy":
+            size = EASY_SIZE
+            density = EASY_DENSITY
+        elif difficulty == "hard":
+            size = HARD_SIZE
+            density = HARD_DENSITY
+        else:  # medium
+            size = MEDIUM_SIZE
+            density = MEDIUM_DENSITY
+        
+        # Generate maze
+        maker = MazeMaker(size, density)
+        self.maze, self.start, self.end = maker.make_maze()
+        self.maze_size = size
+        
+        # Initialize pathfinder and display
+        self.pathfinder = PathFinder(self.maze)
+        self.display = GameDisplay(self.maze, self.start, self.end)
+        
+        # Game state
+        self.player_path = [self.start]
+        self.score = 0
+        self.start_time = time.time()
+    
+    def play_player_mode(self):
+        """Let the player solve the maze"""
+        print("Player Mode: Use arrow keys to navigate to the end (E)")
+        print("Press 'q' to quit")
+        
+        # Connect keyboard input
+        self.display.fig.canvas.mpl_connect('key_press_event', self.handle_keypress)
+        
+        # Show initial state
+        self.display.update_display()
+        self.display.keep_open()
+        
+        # Calculate score if player reached the end
+        if self.player_path[-1] == self.end:
+            time_taken = time.time() - self.start_time
+            self.score = 1000 - len(self.player_path) * MOVE_PENALTY - time_taken * TIME_PENALTY
+            print(f"Congratulations! You finished in {len(self.player_path)} moves!")
+            print(f"Time: {time_taken:.2f} seconds")
+            print(f"Score: {self.score:.2f}")
+        else:
+            print("Game quit")
+    
+    def handle_keypress(self, event):
+        """Handle keyboard input for player movement"""
+        if event.key == 'q':
+            self.display.keep_open()
+            return
+        
+        row, col = self.display.player_pos
+        new_pos = None
+        
+        if event.key == 'up':
+            new_pos = (row-1, col)
+        elif event.key == 'down':
+            new_pos = (row+1, col)
+        elif event.key == 'left':
+            new_pos = (row, col-1)
+        elif event.key == 'right':
+            new_pos = (row, col+1)
+        
+        if new_pos and self.display.move_player(new_pos):
+            self.player_path.append(new_pos)
+            
+            # Check if player reached the end
+            if new_pos == self.end:
+                self.display.show_message("You reached the end!")
+                time.sleep(1)
+                self.display.keep_open()
+    
+    def play_ai_mode(self, algorithm="a_star"):
+        """Let the AI solve the maze"""
+        print(f"AI Mode: Solving with {algorithm} algorithm")
+        
+        # Find path
+        if algorithm == "a_star":
+            path = self.pathfinder.find_path_a_star(self.start, self.end)
+        else:
+            path = self.pathfinder.find_path_recursive(self.start, self.end)
+        
+        if path:
+            self.display.show_ai_path(path)
+            self.display.show_message(f"AI solved in {len(path)} steps!")
+            time.sleep(1)
+        else:
+            self.display.show_message("No path found!")
+            time.sleep(1)
+        
+        self.display.keep_open()
+
+def main():
+    """Main function to run the game"""
+    parser = argparse.ArgumentParser(description="Maze Solver Project")
+    parser.add_argument("--mode", choices=["player", "ai"], default="player",
+                        help="Game mode: player or AI")
+    parser.add_argument("--algorithm", choices=["a_star", "recursive"], default="a_star",
+                        help="Pathfinding algorithm for AI mode")
+    parser.add_argument("--difficulty", choices=["easy", "medium", "hard"], default="medium",
+                        help="Game difficulty level")
+    
+    args = parser.parse_args()
+    
+    # Create and play game
+    game = MazeGame(difficulty=args.difficulty)
+    
+    if args.mode == "player":
+        game.play_player_mode()
+    else:
+        game.play_ai_mode(algorithm=args.algorithm)
+
+if __name__ == "__main__":
+    main()
+
+
+
+    
